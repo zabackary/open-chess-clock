@@ -1,49 +1,139 @@
 #![no_std]
 #![no_main]
+#![feature(abi_avr_interrupt)]
 
-use arduino_hal::simple_pwm::{IntoPwmPin, Prescaler, Timer0Pwm, Timer2Pwm};
+use core::cell::RefCell;
+
+use arduino_hal::{delay_ms, prelude::_void_ResultVoidExt, Delay};
+use countdown::Turn;
+use hd44780_driver::{DisplayMode, HD44780};
 use panic_halt as _;
-use ufmt::uwriteln;
+use ufmt::{uwrite, uwriteln};
 
-const DELAY_TIME: u16 = 10;
+mod countdown;
+mod lcd_writer;
+mod millis;
+mod pause;
+mod time_set;
+
+const LCD_LINE_LENGTH: u8 = 40;
+const SPLASH_DURATION: u16 = 1500;
 
 #[arduino_hal::entry]
 fn main() -> ! {
     let dp = arduino_hal::Peripherals::take().unwrap();
     let pins = arduino_hal::pins!(dp);
     let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
-    let timer0 = Timer0Pwm::new(dp.TC0, Prescaler::Prescale64);
-    let timer2 = Timer2Pwm::new(dp.TC2, Prescaler::Prescale64);
+    uwriteln!(serial, "Initializing chess clock...").void_unwrap();
 
-    let mut red = pins.d6.into_output().into_pwm(&timer0);
-    red.enable();
-    let mut green = pins.d5.into_output().into_pwm(&timer0);
-    green.enable();
-    let mut blue = pins.d3.into_output().into_pwm(&timer2);
-    blue.enable();
-    let mut counter: isize = 0;
+    // Initialize peripherals
+    let mut builtin_led = pins.d13.into_output_high();
+    let mut down_btn = pins.d2.into_pull_up_input(); // Also P1 button
+    let mut up_btn = pins.d4.into_pull_up_input(); // Also P2 button
+    let mut start_btn = pins.d3.into_pull_up_input();
+    millis::init(dp.TC0);
+    let mut lcd_delay = Delay::new();
+    let lcd_d4 = pins.d9.into_output();
+    let lcd_d5 = pins.d10.into_output();
+    let lcd_d6 = pins.d11.into_output();
+    let lcd_d7 = pins.d12.into_output();
+    let lcd = RefCell::new(
+        HD44780::new_4bit(
+            pins.d7.into_output(),
+            pins.d8.into_output(),
+            lcd_d4,
+            lcd_d5,
+            lcd_d6,
+            lcd_d7,
+            &mut lcd_delay,
+        )
+        .unwrap(),
+    );
+    lcd.borrow_mut()
+        .set_display_mode(
+            DisplayMode {
+                cursor_blink: hd44780_driver::CursorBlink::Off,
+                cursor_visibility: hd44780_driver::Cursor::Invisible,
+                display: hd44780_driver::Display::On,
+            },
+            &mut lcd_delay,
+        )
+        .unwrap();
+    let mut writer = lcd_writer::LcdWriter::new(&lcd);
 
-    loop {
-        if counter < 767 {
-            counter += 1;
-        } else {
-            counter = 0;
+    // Enable interrupts! Whoo! Things can break!
+    unsafe { avr_device::interrupt::enable() };
+
+    // Turn off the init light to show the successful end of initialization
+    uwriteln!(serial, "Successfully initialized").void_unwrap();
+    builtin_led.set_low();
+
+    // Show the splash screen
+    lcd.borrow_mut().clear(&mut lcd_delay).unwrap();
+    lcd.borrow_mut().set_cursor_pos(0, &mut lcd_delay).unwrap();
+    uwrite!(writer, " OpenChessClock ").unwrap();
+    lcd.borrow_mut()
+        .set_cursor_pos(LCD_LINE_LENGTH * 1, &mut lcd_delay)
+        .unwrap();
+    uwrite!(writer, "      v0.1      ").unwrap();
+    delay_ms(SPLASH_DURATION);
+
+    'main: loop {
+        // Prompt the user to set up the time
+        let mut times = time_set::time_set(
+            &mut down_btn,
+            &mut up_btn,
+            &mut start_btn,
+            &mut lcd_delay,
+            &lcd,
+            &mut writer,
+        )
+        .unwrap();
+        uwrite!(serial, "New times - p1: {:?}, p2: {:?}", times.0, times.1).void_unwrap();
+        let mut turn = countdown::Turn::P1;
+        loop {
+            match countdown::countdown(
+                &mut down_btn,
+                &mut up_btn,
+                &mut start_btn,
+                &mut lcd_delay,
+                &lcd,
+                &mut writer,
+                &mut times.0,
+                &mut times.1,
+                &mut turn,
+            )
+            .unwrap()
+            {
+                countdown::CountdownResult::FinishedP1 => break,
+                countdown::CountdownResult::FinishedP2 => break,
+                countdown::CountdownResult::Paused => (),
+            }
+            match pause::pause(
+                &mut down_btn,
+                &mut up_btn,
+                &mut start_btn,
+                &mut lcd_delay,
+                &lcd,
+                &mut writer,
+                &times.0,
+                &times.1,
+            )
+            .unwrap()
+            {
+                pause::PauseResult::ResumedP1 => turn = Turn::P1,
+                pause::PauseResult::ResumedP2 => turn = Turn::P2,
+                pause::PauseResult::Stopped => continue 'main,
+            }
         }
-        let (r, g, b) = get_intensities(counter);
-        red.set_duty(r / 5);
-        green.set_duty(g / 5);
-        blue.set_duty(b / 5);
-        arduino_hal::delay_ms(DELAY_TIME);
-    }
-}
 
-/// From https://github.com/mclarkk/arduino-rgb-tutorial/blob/master/rainbow_fade.ino
-fn get_intensities(color: isize) -> (u8, u8, u8) {
-    if color <= 255 {
-        ((255 - color) as u8, color as u8, 0)
-    } else if color <= 511 {
-        (0, (255 - (color - 256)) as u8, (color - 256) as u8)
-    } else {
-        ((color - 512) as u8, 0, (255 - (color - 512)) as u8)
+        // Out of time, need to check
+
+        lcd.borrow_mut().set_cursor_pos(0, &mut lcd_delay).unwrap();
+        uwrite!(writer, "P1            P2").unwrap();
+        lcd.borrow_mut()
+            .set_cursor_pos(LCD_LINE_LENGTH * 1, &mut lcd_delay)
+            .unwrap();
+        uwrite!(writer, "{}", millis::millis() / 1000).unwrap();
     }
 }
