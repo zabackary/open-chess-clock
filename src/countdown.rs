@@ -54,15 +54,21 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
 
         match turn {
             Turn::P1 => {
-                if p1_ms.checked_sub(difference).is_none() {
-                    p1_ms = 0;
-                    break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
+                match p1_ms.checked_sub(difference) {
+                    Some(x) => p1_ms = x,
+                    None => {
+                        p1_ms = 0;
+                        break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
+                    }
                 }
             }
             Turn::P2 => {
-                if p2_ms.checked_sub(difference).is_none() {
-                    p2_ms = 0;
-                    break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
+                match p2_ms.checked_sub(difference) {
+                    Some(x) => p2_ms = x,
+                    None => {
+                        p2_ms = 0;
+                        break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
+                    }
                 }
             }
         }
