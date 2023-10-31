@@ -54,17 +54,17 @@ Time's up   [P2]
 
 ## Hardware connections
 
-1. LCD
-   LCD RS => Arduino d7 (register select)
-   LCD EN => Arduino d8 (enable)
-   LCD d4 => Arduino d9
-   LCD d5 => Arduino d10
-   LCD d6 => Arduino d11
-   LCD d7 => Arduino d12
+1. **LCD**  
+   LCD RS => Arduino d7 (register select)  
+   LCD EN => Arduino d8 (enable)  
+   LCD d4 => Arduino d9  
+   LCD d5 => Arduino d10  
+   LCD d6 => Arduino d11  
+   LCD d7 => Arduino d12  
    The LCD backlight cathode and anode should be connected, and the contrast should be set to an appropriate amount using a pot.
-2. Buttons
-   Down button => Arduino d2 & GND (also functions as P1 button)
-   Start button => Arduino d3 & GND
+2. **Buttons**  
+   Down button => Arduino d2 & GND (also functions as P1 button)  
+   Start button => Arduino d3 & GND  
    UP button => Arduino d4 & GND (also functions as P2 button)
 
 ## Build Instructions
