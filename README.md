@@ -1,5 +1,4 @@
 # rust-chess-clock
-=================
 
 A simple chess clock for the _Arduino Uno_ (specifically the r3, though it probably doesn't matter). Basically, it has an up/P1 button, a down/P2 button, and a start/stop button for configuration.
 
