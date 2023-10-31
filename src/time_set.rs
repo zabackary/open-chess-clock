@@ -151,6 +151,7 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
                 TimeSetPart::P2SetMin => p2_setting -= 60,
                 TimeSetPart::P2SetSec => p2_setting -= 1,
             }
+            down_hold_count = 0;
             is_changing = true;
         }
         if down_hold_count > HOLD_THRESHOLD {
