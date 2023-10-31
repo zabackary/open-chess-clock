@@ -6,18 +6,20 @@ A simple chess clock for the _Arduino Uno_ (specifically the r3, though it proba
 
 State diagram
 ```
-                      /--------------\
-                     \/              | UP/DN
-+----------+ ST +-----------+ ST +-------+
-| Time set | -> | Countdown | => | Pause |
-+----------+    +-----------+    +-------+
-   /\  /\             | (finish)     | ST
-    |   \-------------|--------------/
-    |                 |
-    |                \/
-    |       ST +------------+
-    \--------- | Win screen |
-               +------------+
+                      .----------------.
+                      |                |
+                      v                | UP/DN
+┌----------┐ ST  ┌-----------┐ ST  ┌-------┐
+| Time set | --> | Countdown | --> | Pause |
+└----------┘     └-----------┘     └-------┘
+    ^  ^               | (finish)      | ST
+    |  |               |               |
+    |  `---------------|---------------'
+    |                  |
+    |                  v
+    |        ST ┌------------┐
+    `---------- | Win screen |
+                └------------┘
 ```
 
 Time set ([`time_set.rs`](./src/time_set.rs)):
