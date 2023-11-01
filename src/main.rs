@@ -4,11 +4,11 @@
 
 use core::cell::RefCell;
 
-use arduino_hal::{delay_ms, prelude::_void_ResultVoidExt, Delay};
+use arduino_hal::{delay_ms, Delay};
 use countdown::Turn;
 use hd44780_driver::{DisplayMode, HD44780};
 use panic_halt as _;
-use ufmt::{uwrite, uwriteln};
+use ufmt::uwrite;
 
 mod countdown;
 mod finish;
@@ -24,8 +24,6 @@ const SPLASH_DURATION: u16 = 1500;
 fn main() -> ! {
     let dp = arduino_hal::Peripherals::take().unwrap();
     let pins = arduino_hal::pins!(dp);
-    let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
-    uwriteln!(serial, "Initializing chess clock...").void_unwrap();
 
     // Initialize peripherals
     let mut builtin_led = pins.d13.into_output_high();
@@ -66,7 +64,6 @@ fn main() -> ! {
     unsafe { avr_device::interrupt::enable() };
 
     // Turn off the init light to show the successful end of initialization
-    uwriteln!(serial, "Successfully initialized").void_unwrap();
     builtin_led.set_low();
 
     // Show the splash screen
@@ -90,7 +87,6 @@ fn main() -> ! {
             &mut writer,
         )
         .unwrap();
-        uwriteln!(serial, "New times - p1: {:?}, p2: {:?}", times.0, times.1).void_unwrap();
         let mut turn = match pause::pause(
             &mut down_btn,
             &mut up_btn,
