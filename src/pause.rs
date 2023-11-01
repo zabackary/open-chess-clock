@@ -11,7 +11,7 @@ use crate::{
     LCD_LINE_LENGTH,
 };
 
-const BLINK_DURATION: u16 = 20;
+const BLINK_DURATION: u16 = 400;
 const LOOP_DELAY: u16 = 5;
 
 pub enum PauseResult {
@@ -29,16 +29,18 @@ pub fn pause<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
     writer: &mut LcdWriter<'_, B>,
     p1_time: &TimeSetting,
     p2_time: &TimeSetting,
+    initial_pause: bool,
 ) -> Result<PauseResult, hd44780_driver::error::Error> {
-    let mut down = debouncr::debounce_4(true);
-    let mut up = debouncr::debounce_4(true);
-    let mut start = debouncr::debounce_4(true);
+    let mut down = debouncr::debounce_4(false);
+    let mut up = debouncr::debounce_4(false);
+    let mut start = debouncr::debounce_4(false);
 
     lcd.borrow_mut()
         .set_cursor_pos(LCD_LINE_LENGTH * 1, delay)?;
     render_time(p1_time, p2_time, None, writer)?;
 
     let mut blink_count = 0;
+    let mut last_blink = u8::MAX;
     Ok(loop {
         // Change blinks
         blink_count += 1;
@@ -47,40 +49,51 @@ pub fn pause<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
         }
         let blink = (blink_count / BLINK_DURATION) as u8;
 
-        // Render
-        lcd.borrow_mut().set_cursor_pos(0, delay)?;
-        match blink {
-            0 => uwrite!(writer, "P1  >Paused<  P2")?,
-            1 => uwrite!(writer, "START to restart")?,
-            _ => uwrite!(writer, "P1/P2 to resume ")?,
+        // Lazy render
+        if blink != last_blink {
+            lcd.borrow_mut().set_cursor_pos(0, delay)?;
+            if initial_pause {
+                match blink {
+                    0 => uwrite!(writer, " P1/P2 to begin ")?,
+                    1 => uwrite!(writer, "START to cancel ")?,
+                    _ => uwrite!(writer, " P1          P2 ")?,
+                }
+            } else {
+                match blink {
+                    0 => uwrite!(writer, " P1  Paused  P2 ")?,
+                    1 => uwrite!(writer, "START to restart")?,
+                    _ => uwrite!(writer, "P1/P2 to resume ")?,
+                }
+            }
+            last_blink = blink;
+        } else {
+            delay_ms(LOOP_DELAY);
         }
 
         // Respond to input
         if start.update(
             start_pin
-                .is_high()
+                .is_low()
                 .map_err(|_| hd44780_driver::error::Error)?,
-        ) == Some(debouncr::Edge::Rising)
+        ) == Some(debouncr::Edge::Falling)
         {
-            // Start press; reset and prompt for new time
+            // Start button released; reset and prompt for new time
             break PauseResult::Stopped;
         }
         if down.update(
             down_pin
-                .is_high()
+                .is_low()
                 .map_err(|_| hd44780_driver::error::Error)?,
         ) == Some(debouncr::Edge::Rising)
         {
             // Down/P1 press; exit to P1 countdown
             break PauseResult::ResumedP1;
         }
-        if up.update(up_pin.is_high().map_err(|_| hd44780_driver::error::Error)?)
+        if up.update(up_pin.is_low().map_err(|_| hd44780_driver::error::Error)?)
             == Some(debouncr::Edge::Rising)
         {
             // Up/P2 press; exit to P2 countdown
             break PauseResult::ResumedP2;
         }
-
-        delay_ms(LOOP_DELAY);
     })
 }

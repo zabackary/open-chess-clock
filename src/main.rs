@@ -11,6 +11,7 @@ use panic_halt as _;
 use ufmt::{uwrite, uwriteln};
 
 mod countdown;
+mod finish;
 mod lcd_writer;
 mod millis;
 mod pause;
@@ -89,9 +90,25 @@ fn main() -> ! {
             &mut writer,
         )
         .unwrap();
-        uwrite!(serial, "New times - p1: {:?}, p2: {:?}", times.0, times.1).void_unwrap();
-        let mut turn = countdown::Turn::P1;
-        loop {
+        uwriteln!(serial, "New times - p1: {:?}, p2: {:?}", times.0, times.1).void_unwrap();
+        let mut turn = match pause::pause(
+            &mut down_btn,
+            &mut up_btn,
+            &mut start_btn,
+            &mut lcd_delay,
+            &lcd,
+            &mut writer,
+            &times.0,
+            &times.1,
+            true,
+        )
+        .unwrap()
+        {
+            pause::PauseResult::ResumedP1 => Turn::P1,
+            pause::PauseResult::ResumedP2 => Turn::P2,
+            pause::PauseResult::Stopped => continue 'main,
+        };
+        let loser = loop {
             match countdown::countdown(
                 &mut down_btn,
                 &mut up_btn,
@@ -105,8 +122,8 @@ fn main() -> ! {
             )
             .unwrap()
             {
-                countdown::CountdownResult::FinishedP1 => break,
-                countdown::CountdownResult::FinishedP2 => break,
+                countdown::CountdownResult::FinishedP1 => break Turn::P1,
+                countdown::CountdownResult::FinishedP2 => break Turn::P2,
                 countdown::CountdownResult::Paused => (),
             }
             match pause::pause(
@@ -118,6 +135,7 @@ fn main() -> ! {
                 &mut writer,
                 &times.0,
                 &times.1,
+                false,
             )
             .unwrap()
             {
@@ -125,15 +143,7 @@ fn main() -> ! {
                 pause::PauseResult::ResumedP2 => turn = Turn::P2,
                 pause::PauseResult::Stopped => continue 'main,
             }
-        }
-
-        // Out of time, need to check
-
-        lcd.borrow_mut().set_cursor_pos(0, &mut lcd_delay).unwrap();
-        uwrite!(writer, "P1            P2").unwrap();
-        lcd.borrow_mut()
-            .set_cursor_pos(LCD_LINE_LENGTH * 1, &mut lcd_delay)
-            .unwrap();
-        uwrite!(writer, "{}", millis::millis() / 1000).unwrap();
+        };
+        finish::finish(&loser, &mut lcd_delay, &lcd, &mut writer, &mut start_btn).unwrap();
     }
 }

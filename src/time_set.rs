@@ -10,11 +10,12 @@ use ufmt::{derive::uDebug, uwrite};
 
 use crate::{lcd_writer::LcdWriter, LCD_LINE_LENGTH};
 
-const BLINK_DURATION: u16 = 10;
-const HOLD_THRESHOLD: u16 = 20;
+const BLINK_DURATION: u16 = 100;
+const HOLD_THRESHOLD: u16 = 150;
+const REPEAT_THRESHOLD: u16 = 20;
 const LOOP_DELAY: u16 = 5;
 
-#[derive(uDebug, PartialEq, Eq)]
+#[derive(uDebug, PartialEq, Eq, Clone, Copy)]
 pub enum TimeSetPart {
     P1SetMin,
     P1SetSec,
@@ -22,7 +23,7 @@ pub enum TimeSetPart {
     P2SetSec,
 }
 
-#[derive(uDebug)]
+#[derive(uDebug, PartialEq, Eq, Clone, Copy)]
 pub struct TimeSetting(u16);
 
 impl TimeSetting {
@@ -93,13 +94,16 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
     let mut p1_setting = TimeSetting::new(0);
     let mut p2_setting = TimeSetting::new(0);
 
-    let mut down = debouncr::debounce_4(true);
+    let mut down = debouncr::debounce_4(false);
     let mut down_hold_count: u16 = 0;
-    let mut up = debouncr::debounce_4(true);
+    let mut up = debouncr::debounce_4(false);
     let mut up_hold_count: u16 = 0;
-    let mut start = debouncr::debounce_4(true);
+    let mut start = debouncr::debounce_4(false);
 
     let mut blink_count = 0;
+    let mut last_p1_setting = TimeSetting::new(u16::MAX);
+    let mut last_p2_setting = TimeSetting::new(u16::MAX);
+    let mut last_blink = Some(TimeSetPart::P1SetMin);
     loop {
         // Change blinks
         blink_count += 1;
@@ -109,10 +113,7 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
         }
 
         // Update states
-
-        let mut is_changing = false;
-
-        if up.update(up_pin.is_high().map_err(|_| hd44780_driver::error::Error)?)
+        if up.update(up_pin.is_low().map_err(|_| hd44780_driver::error::Error)?)
             == Some(debouncr::Edge::Rising)
         {
             // Up press
@@ -123,24 +124,29 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
                 TimeSetPart::P2SetSec => p2_setting += 1,
             }
             up_hold_count = 0;
-            is_changing = true;
+            blink_count = 0;
         }
-        if up_hold_count > HOLD_THRESHOLD {
+        if up_hold_count == HOLD_THRESHOLD {
             // Up hold
             match state {
                 TimeSetPart::P1SetMin => p1_setting += 60,
-                TimeSetPart::P1SetSec => p1_setting += 5,
+                TimeSetPart::P1SetSec => p1_setting += 1,
                 TimeSetPart::P2SetMin => p2_setting += 60,
-                TimeSetPart::P2SetSec => p2_setting += 5,
+                TimeSetPart::P2SetSec => p2_setting += 1,
             }
-            is_changing = true;
-        } else if up.is_high() {
+            blink_count = 0;
             up_hold_count += 1;
+        }
+        if up.is_high() {
+            up_hold_count += 1;
+        }
+        if up_hold_count >= HOLD_THRESHOLD + REPEAT_THRESHOLD {
+            up_hold_count = HOLD_THRESHOLD
         }
 
         if down.update(
             down_pin
-                .is_high()
+                .is_low()
                 .map_err(|_| hd44780_driver::error::Error)?,
         ) == Some(debouncr::Edge::Rising)
         {
@@ -152,27 +158,33 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
                 TimeSetPart::P2SetSec => p2_setting -= 1,
             }
             down_hold_count = 0;
-            is_changing = true;
+            blink_count = 0;
         }
-        if down_hold_count > HOLD_THRESHOLD {
+        if down_hold_count == HOLD_THRESHOLD {
             // Down hold
             match state {
                 TimeSetPart::P1SetMin => p1_setting -= 60,
-                TimeSetPart::P1SetSec => p1_setting -= 5,
+                TimeSetPart::P1SetSec => p1_setting -= 1,
                 TimeSetPart::P2SetMin => p2_setting -= 60,
-                TimeSetPart::P2SetSec => p2_setting -= 5,
+                TimeSetPart::P2SetSec => p2_setting -= 1,
             }
-            is_changing = true;
-        } else if down.is_high() {
+            blink_count = 0;
             down_hold_count += 1;
+        }
+        if down.is_high() {
+            down_hold_count += 1;
+        }
+        if down_hold_count >= HOLD_THRESHOLD + REPEAT_THRESHOLD {
+            down_hold_count = HOLD_THRESHOLD
         }
 
         if start.update(
             start_pin
-                .is_high()
+                .is_low()
                 .map_err(|_| hd44780_driver::error::Error)?,
-        ) == Some(debouncr::Edge::Rising)
+        ) == Some(debouncr::Edge::Falling)
         {
+            // Start button released; go to next portion
             state = match state {
                 TimeSetPart::P1SetMin => TimeSetPart::P1SetSec,
                 TimeSetPart::P1SetSec => TimeSetPart::P2SetMin,
@@ -184,14 +196,16 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
         // Render results
         lcd.borrow_mut()
             .set_cursor_pos(LCD_LINE_LENGTH * 1, delay)?;
-        render_time(
-            &p1_setting,
-            &p2_setting,
-            if blink { Some(&state) } else { None },
-            writer,
-        )?;
-
-        delay_ms(LOOP_DELAY);
+        let new_blink = if blink { Some(state) } else { None };
+        if p1_setting != last_p1_setting || p2_setting != last_p2_setting || new_blink != last_blink
+        {
+            render_time(&p1_setting, &p2_setting, new_blink, writer)?;
+            last_p1_setting = p1_setting;
+            last_p2_setting = p2_setting;
+            last_blink = new_blink;
+        } else {
+            delay_ms(LOOP_DELAY);
+        }
     }
     Ok((p1_setting, p2_setting))
 }
@@ -199,11 +213,11 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
 pub fn render_time<B: DataBus>(
     p1_time: &TimeSetting,
     p2_time: &TimeSetting,
-    blink_off_part: Option<&TimeSetPart>,
+    blink_off_part: Option<TimeSetPart>,
     writer: &mut LcdWriter<'_, B>,
 ) -> Result<(), hd44780_driver::error::Error> {
     let p1_parts = p1_time.into_hrs_mins_secs();
-    if !blink_off_part.is_some_and(|b| *b == TimeSetPart::P1SetMin) {
+    if !blink_off_part.is_some_and(|b| b == TimeSetPart::P1SetMin) {
         // Hour
         uwrite!(writer, "{}:", p1_parts.0.min(9))?;
         // Minute
@@ -215,7 +229,7 @@ pub fn render_time<B: DataBus>(
     } else {
         uwrite!(writer, " :  :")?;
     }
-    if !blink_off_part.is_some_and(|b| *b == TimeSetPart::P1SetSec) {
+    if !blink_off_part.is_some_and(|b| b == TimeSetPart::P1SetSec) {
         // Second
         if p1_parts.2 > 9 {
             uwrite!(writer, "{}  ", p1_parts.2)?;
@@ -226,7 +240,7 @@ pub fn render_time<B: DataBus>(
         uwrite!(writer, "    ")?;
     }
     let p2_parts = p2_time.into_hrs_mins_secs();
-    if !blink_off_part.is_some_and(|b| *b == TimeSetPart::P2SetMin) {
+    if !blink_off_part.is_some_and(|b| b == TimeSetPart::P2SetMin) {
         // Hour
         uwrite!(writer, "{}:", p2_parts.0.min(9))?;
         // Minute
@@ -238,7 +252,7 @@ pub fn render_time<B: DataBus>(
     } else {
         uwrite!(writer, " :  :")?;
     }
-    if !blink_off_part.is_some_and(|b| *b == TimeSetPart::P2SetSec) {
+    if !blink_off_part.is_some_and(|b| b == TimeSetPart::P2SetSec) {
         // Second
         if p2_parts.2 > 9 {
             uwrite!(writer, "{}", p2_parts.2)?;

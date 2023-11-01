@@ -20,7 +20,7 @@ pub enum CountdownResult {
     Paused,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum Turn {
     P1,
     P2,
@@ -37,15 +37,29 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
     p2_time: &mut TimeSetting,
     turn: &mut Turn,
 ) -> Result<CountdownResult, hd44780_driver::error::Error> {
-    let mut down = debouncr::debounce_4(true);
-    let mut up = debouncr::debounce_4(true);
-    let mut start = debouncr::debounce_4(true);
+    let mut down = debouncr::debounce_4(false);
+    let mut up = debouncr::debounce_4(false);
+    let mut start = debouncr::debounce_4(false);
 
+    // Initialize last_* variable with bogus values to prompt immediate render
+    let mut last_p1_time = TimeSetting::new(u16::MAX);
     let mut p1_ms = p1_time.into_millis();
+    let mut last_p2_time = TimeSetting::new(u16::MAX);
     let mut p2_ms = p2_time.into_millis();
     let mut last_frame_ms = millis();
+    let mut last_turn = turn.clone();
     Ok(loop {
-        render(delay, lcd, p1_ms, p2_ms, turn, writer)?;
+        let new_p1_time = convert_time(p1_ms);
+        let new_p2_time = convert_time(p2_ms);
+        // Lazy render
+        if *turn != last_turn || new_p1_time != last_p1_time || new_p2_time != last_p2_time {
+            last_turn = turn.clone();
+            render(delay, lcd, &new_p1_time, &new_p2_time, turn, writer)?;
+            last_p1_time = new_p1_time;
+            last_p2_time = new_p2_time;
+        } else {
+            delay_ms(LOOP_DELAY);
+        }
 
         let current_time = millis();
         // Compute the time difference, wrapping since u32 ms time is only ~1hr
@@ -53,38 +67,34 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
         last_frame_ms = current_time;
 
         match turn {
-            Turn::P1 => {
-                match p1_ms.checked_sub(difference) {
-                    Some(x) => p1_ms = x,
-                    None => {
-                        p1_ms = 0;
-                        break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
-                    }
+            Turn::P1 => match p1_ms.checked_sub(difference) {
+                Some(x) => p1_ms = x,
+                None => {
+                    p1_ms = 0;
+                    break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
                 }
-            }
-            Turn::P2 => {
-                match p2_ms.checked_sub(difference) {
-                    Some(x) => p2_ms = x,
-                    None => {
-                        p2_ms = 0;
-                        break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
-                    }
+            },
+            Turn::P2 => match p2_ms.checked_sub(difference) {
+                Some(x) => p2_ms = x,
+                None => {
+                    p2_ms = 0;
+                    break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
                 }
-            }
+            },
         }
 
         if start.update(
             start_pin
-                .is_high()
+                .is_low()
                 .map_err(|_| hd44780_driver::error::Error)?,
-        ) == Some(debouncr::Edge::Rising)
+        ) == Some(debouncr::Edge::Falling)
         {
-            // Start press; pause the game
+            // Start button released; pause the game
             break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
         }
         if down.update(
             down_pin
-                .is_high()
+                .is_low()
                 .map_err(|_| hd44780_driver::error::Error)?,
         ) == Some(debouncr::Edge::Rising)
             && *turn == Turn::P2
@@ -92,23 +102,21 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
             // Down/P1 press
             *turn = Turn::P1;
         }
-        if up.update(up_pin.is_high().map_err(|_| hd44780_driver::error::Error)?)
+        if up.update(up_pin.is_low().map_err(|_| hd44780_driver::error::Error)?)
             == Some(debouncr::Edge::Rising)
             && *turn == Turn::P1
         {
             // Up/P2 press
             *turn = Turn::P2
         }
-
-        delay_ms(LOOP_DELAY);
     })
 }
 
 fn render<B: DataBus>(
     delay: &mut Delay,
     lcd: &RefCell<HD44780<B>>,
-    p1_ms: u32,
-    p2_ms: u32,
+    p1_time: &TimeSetting,
+    p2_time: &TimeSetting,
     turn: &Turn,
     writer: &mut LcdWriter<'_, B>,
 ) -> Result<(), hd44780_driver::error::Error> {
@@ -120,7 +128,7 @@ fn render<B: DataBus>(
     }
     lcd.borrow_mut()
         .set_cursor_pos(LCD_LINE_LENGTH * 1, delay)?;
-    render_time(&convert_time(p1_ms), &convert_time(p2_ms), None, writer)?;
+    render_time(p1_time, p2_time, None, writer)?;
     Ok(())
 }
 
