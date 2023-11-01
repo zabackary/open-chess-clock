@@ -1,12 +1,12 @@
 [package]
-name = "rust-chess-clock"
+name = "open-chess-clock"
 version = "1.0.0"
 authors = ["zabackary <137591653+zabackary@users.noreply.github.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [[bin]]
-name = "rust-chess-clock"
+name = "open-chess-clock"
 test = false
 bench = false
 
