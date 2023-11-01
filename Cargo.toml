@@ -1,6 +1,6 @@
 [package]
 name = "rust-chess-clock"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["zabackary <137591653+zabackary@users.noreply.github.com>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
