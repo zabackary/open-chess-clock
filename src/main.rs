@@ -73,7 +73,8 @@ fn main() -> ! {
     lcd.borrow_mut()
         .set_cursor_pos(LCD_LINE_LENGTH * 1, &mut lcd_delay)
         .unwrap();
-    uwrite!(writer, "      v0.1      ").unwrap();
+    let version = env!("CARGO_PKG_VERSION");
+    uwrite!(writer, "     v{}     ", version).unwrap();
     delay_ms(SPLASH_DURATION);
 
     'main: loop {
