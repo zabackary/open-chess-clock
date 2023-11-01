@@ -43,14 +43,36 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
 
     // Initialize last_* variable with bogus values to prompt immediate render
     let mut last_p1_time = TimeSetting::new(u16::MAX);
-    let mut p1_ms = p1_time.into_millis();
+    let mut p1_ms_at_change = p1_time.into_millis();
     let mut last_p2_time = TimeSetting::new(u16::MAX);
-    let mut p2_ms = p2_time.into_millis();
-    let mut last_frame_ms = millis();
+    let mut p2_ms_at_change = p2_time.into_millis();
     let mut last_turn = turn.clone();
+
+    let mut last_change_time = millis();
     Ok(loop {
-        let new_p1_time = convert_time(p1_ms);
-        let new_p2_time = convert_time(p2_ms);
+        let time_since_change = millis() - last_change_time;
+        let new_p1_time = if *turn == Turn::P1 {
+            convert_time(match p1_ms_at_change.checked_sub(time_since_change) {
+                Some(x) => x,
+                None => {
+                    p1_ms_at_change = 0;
+                    break finish_countdown(p1_ms_at_change, p2_ms_at_change, p1_time, p2_time);
+                }
+            })
+        } else {
+            convert_time(p1_ms_at_change)
+        };
+        let new_p2_time = if *turn == Turn::P2 {
+            convert_time(match p2_ms_at_change.checked_sub(time_since_change) {
+                Some(x) => x,
+                None => {
+                    p2_ms_at_change = 0;
+                    break finish_countdown(p1_ms_at_change, p2_ms_at_change, p1_time, p2_time);
+                }
+            })
+        } else {
+            convert_time(p2_ms_at_change)
+        };
         // Lazy render
         if *turn != last_turn || new_p1_time != last_p1_time || new_p2_time != last_p2_time {
             last_turn = turn.clone();
@@ -61,36 +83,23 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
             delay_ms(LOOP_DELAY);
         }
 
-        let current_time = millis();
-        // Compute the time difference, wrapping since u32 ms time is only ~1hr
-        let difference = current_time.wrapping_sub(last_frame_ms);
-        last_frame_ms = current_time;
-
-        match turn {
-            Turn::P1 => match p1_ms.checked_sub(difference) {
-                Some(x) => p1_ms = x,
-                None => {
-                    p1_ms = 0;
-                    break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
-                }
-            },
-            Turn::P2 => match p2_ms.checked_sub(difference) {
-                Some(x) => p2_ms = x,
-                None => {
-                    p2_ms = 0;
-                    break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
-                }
-            },
-        }
-
         if start.update(
             start_pin
                 .is_low()
                 .map_err(|_| hd44780_driver::error::Error)?,
         ) == Some(debouncr::Edge::Falling)
         {
+            // Unsafe subtraction since it's already been checked in the rendering code
+            match *turn {
+                Turn::P1 => {
+                    p1_ms_at_change = p1_ms_at_change - time_since_change;
+                }
+                Turn::P2 => {
+                    p2_ms_at_change = p2_ms_at_change - time_since_change;
+                }
+            }
             // Start button released; pause the game
-            break finish_countdown(p1_ms, p2_ms, p1_time, p2_time);
+            break finish_countdown(p1_ms_at_change, p2_ms_at_change, p1_time, p2_time);
         }
         if down.update(
             down_pin
@@ -99,15 +108,21 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
         ) == Some(debouncr::Edge::Rising)
             && *turn == Turn::P2
         {
-            // Down/P1 press
-            *turn = Turn::P1;
+            // Down/P1 press (switch to P2)
+            // Unsafe subtraction since it's already been checked in the rendering code
+            p1_ms_at_change = p1_ms_at_change - time_since_change;
+            last_change_time = millis();
+            *turn = Turn::P2
         }
         if up.update(up_pin.is_low().map_err(|_| hd44780_driver::error::Error)?)
             == Some(debouncr::Edge::Rising)
             && *turn == Turn::P1
         {
-            // Up/P2 press
-            *turn = Turn::P2
+            // Up/P2 press (switch to P1)
+            // Unsafe subtraction since it's already been checked in the rendering code
+            p2_ms_at_change = p2_ms_at_change - time_since_change;
+            last_change_time = millis();
+            *turn = Turn::P1;
         }
     })
 }
