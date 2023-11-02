@@ -133,9 +133,9 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
             // Up hold
             match state {
                 TimeSetPart::P1SetMin => p1_setting += 60,
-                TimeSetPart::P1SetSec => p1_setting += 1,
+                TimeSetPart::P1SetSec => p1_setting += 5,
                 TimeSetPart::P2SetMin => p2_setting += 60,
-                TimeSetPart::P2SetSec => p2_setting += 1,
+                TimeSetPart::P2SetSec => p2_setting += 5,
             }
             blink_count = 0;
             up_hold_count += 1;
@@ -164,9 +164,9 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
             // Down hold
             match state {
                 TimeSetPart::P1SetMin => p1_setting -= 60,
-                TimeSetPart::P1SetSec => p1_setting -= 1,
+                TimeSetPart::P1SetSec => p1_setting -= 5,
                 TimeSetPart::P2SetMin => p2_setting -= 60,
-                TimeSetPart::P2SetSec => p2_setting -= 1,
+                TimeSetPart::P2SetSec => p2_setting -= 5,
             }
             blink_count = 0;
             down_hold_count += 1;
