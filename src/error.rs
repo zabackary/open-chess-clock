@@ -2,4 +2,5 @@
 pub enum RuntimeError {
     LcdError,
     PinReadError,
+    PinWriteError,
 }

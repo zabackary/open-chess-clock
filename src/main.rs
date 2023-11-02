@@ -7,7 +7,7 @@ use core::cell::RefCell;
 
 use arduino_hal::{delay_ms, Delay};
 use countdown::Turn;
-use embedded_hal::digital::v2::InputPin;
+use embedded_hal::digital::v2::{InputPin, OutputPin};
 use error::RuntimeError;
 use hd44780_driver::{bus::DataBus, DisplayMode, HD44780};
 use lcd_writer::LcdWriter;
@@ -37,6 +37,8 @@ fn main() -> ! {
     let down_btn = pins.d2.into_pull_up_input(); // Also P1 button
     let up_btn = pins.d4.into_pull_up_input(); // Also P2 button
     let start_btn = pins.d3.into_pull_up_input();
+
+    let buzzer = pins.d6.into_output();
 
     let mut lcd_delay = Delay::new();
     let lcd_d4 = pins.d9.into_output();
@@ -73,10 +75,12 @@ fn main() -> ! {
     // Turn off the init light to show the successful end of initialization
     builtin_led.set_low();
 
+    // The main runtime is in a wrapper to handle errors properly
     if let Err(err) = runtime(
         down_btn,
         up_btn,
         start_btn,
+        buzzer,
         &mut lcd_delay,
         &lcd,
         &mut writer,
@@ -96,10 +100,11 @@ fn main() -> ! {
     }
 }
 
-fn runtime<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
+fn runtime<DP: InputPin, UP: InputPin, SP: InputPin, BP: OutputPin, B: DataBus>(
     mut down_btn: DP,
     mut up_btn: UP,
     mut start_btn: SP,
+    mut buzzer: BP,
     lcd_delay: &mut Delay,
     lcd: &RefCell<HD44780<B>>,
     writer: &mut LcdWriter<'_, B>,
@@ -149,6 +154,7 @@ fn runtime<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
                 &mut down_btn,
                 &mut up_btn,
                 &mut start_btn,
+                &mut buzzer,
                 lcd_delay,
                 &lcd,
                 writer,
@@ -176,6 +182,6 @@ fn runtime<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
                 pause::PauseResult::Stopped => continue 'main,
             }
         };
-        finish::finish(&loser, lcd_delay, &lcd, writer, &mut start_btn)?;
+        finish::finish(&loser, lcd_delay, &lcd, writer, &mut start_btn, &mut buzzer)?;
     }
 }

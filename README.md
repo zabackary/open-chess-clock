@@ -24,7 +24,8 @@ How do I use this chess clock?
 5. If the game needs to be paused at any time, press the START button. To
    unpause, press the the P1 or P2 buttons depending on who is going next with
    the same schematics as the start screen.
-6. When the game is over, press START to go back to the time selection screen.
+6. When the game is over (the buzzer will sound one long beep if it's
+   connected), press START to go back to the time selection screen.
 
 ## States
 
@@ -101,6 +102,8 @@ Time's up!  [P2]
    Down button => Arduino d2 & GND (also functions as P1 button)  
    Start button => Arduino d3 & GND  
    Up button => Arduino d4 & GND (also functions as P2 button)
+3. **Buzzer** (optional)  
+   Buzzer anode => Arduino d6
 
 ## Build Instructions
 

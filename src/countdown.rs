@@ -1,7 +1,7 @@
 use core::cell::RefCell;
 
 use arduino_hal::{delay_ms, Delay};
-use embedded_hal::digital::v2::InputPin;
+use embedded_hal::digital::v2::{InputPin, OutputPin};
 use hd44780_driver::{bus::DataBus, HD44780};
 use ufmt::uwrite;
 
@@ -14,6 +14,7 @@ use crate::{
 };
 
 const LOOP_DELAY: u16 = 5;
+const BUZZER_LENGTH: u16 = 20;
 
 pub enum CountdownResult {
     FinishedP1,
@@ -27,10 +28,11 @@ pub enum Turn {
     P2,
 }
 
-pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
+pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, BP: OutputPin, B: DataBus>(
     down_pin: &mut DP,
     up_pin: &mut UP,
     start_pin: &mut SP,
+    buzzer_pin: &mut BP,
     delay: &mut Delay,
     lcd: &RefCell<HD44780<B>>,
     writer: &mut LcdWriter<'_, B>,
@@ -50,30 +52,52 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
     let mut last_turn = turn.clone();
 
     let mut last_change_time = millis();
+    let mut remaining_buzzer_duration = 0;
     Ok(loop {
         let time_since_change = millis() - last_change_time;
-        let new_p1_time = if *turn == Turn::P1 {
-            convert_time(match p1_ms_at_change.checked_sub(time_since_change) {
+        let new_p1_ms = if *turn == Turn::P1 {
+            match p1_ms_at_change.checked_sub(time_since_change) {
                 Some(x) => x,
                 None => {
                     p1_ms_at_change = 0;
                     break finish_countdown(p1_ms_at_change, p2_ms_at_change, p1_time, p2_time);
                 }
-            })
+            }
         } else {
-            convert_time(p1_ms_at_change)
+            p1_ms_at_change
         };
-        let new_p2_time = if *turn == Turn::P2 {
-            convert_time(match p2_ms_at_change.checked_sub(time_since_change) {
+        let new_p1_time = convert_time(new_p1_ms);
+        let new_p2_ms = if *turn == Turn::P2 {
+            match p2_ms_at_change.checked_sub(time_since_change) {
                 Some(x) => x,
                 None => {
                     p2_ms_at_change = 0;
                     break finish_countdown(p1_ms_at_change, p2_ms_at_change, p1_time, p2_time);
                 }
-            })
+            }
         } else {
-            convert_time(p2_ms_at_change)
+            p2_ms_at_change
         };
+        let new_p2_time = convert_time(new_p2_ms);
+
+        // Update the buzzer
+        if remaining_buzzer_duration == 1 {
+            buzzer_pin
+                .set_low()
+                .map_err(|_| RuntimeError::PinWriteError)?;
+        }
+        if remaining_buzzer_duration > 0 {
+            remaining_buzzer_duration -= 1;
+        }
+        if (new_p1_ms <= 1000 * 10 && new_p1_ms % 1000 == 0)
+            || (new_p2_ms <= 1000 * 10 && new_p2_ms % 1000 == 0)
+        {
+            buzzer_pin
+                .set_high()
+                .map_err(|_| RuntimeError::PinWriteError)?;
+            remaining_buzzer_duration = BUZZER_LENGTH;
+        }
+
         // Lazy render
         if *turn != last_turn || new_p1_time != last_p1_time || new_p2_time != last_p2_time {
             last_turn = turn.clone();
