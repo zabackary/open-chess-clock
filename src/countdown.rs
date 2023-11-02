@@ -20,7 +20,7 @@ pub enum CountdownResult {
     Paused,
 }
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, ufmt::derive::uDebug)]
 pub enum Turn {
     P1,
     P2,
@@ -106,7 +106,7 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
                 .is_low()
                 .map_err(|_| hd44780_driver::error::Error)?,
         ) == Some(debouncr::Edge::Rising)
-            && *turn == Turn::P2
+            && *turn == Turn::P1
         {
             // Down/P1 press (switch to P2)
             // Unsafe subtraction since it's already been checked in the rendering code
@@ -116,7 +116,7 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
         }
         if up.update(up_pin.is_low().map_err(|_| hd44780_driver::error::Error)?)
             == Some(debouncr::Edge::Rising)
-            && *turn == Turn::P1
+            && *turn == Turn::P2
         {
             // Up/P2 press (switch to P1)
             // Unsafe subtraction since it's already been checked in the rendering code
