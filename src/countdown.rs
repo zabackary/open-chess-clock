@@ -6,6 +6,7 @@ use hd44780_driver::{bus::DataBus, HD44780};
 use ufmt::uwrite;
 
 use crate::{
+    error::RuntimeError,
     lcd_writer::LcdWriter,
     millis::millis,
     time_set::{render_time, TimeSetting},
@@ -36,7 +37,7 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
     p1_time: &mut TimeSetting,
     p2_time: &mut TimeSetting,
     turn: &mut Turn,
-) -> Result<CountdownResult, hd44780_driver::error::Error> {
+) -> Result<CountdownResult, RuntimeError> {
     let mut down = debouncr::debounce_4(false);
     let mut up = debouncr::debounce_4(false);
     let mut start = debouncr::debounce_4(false);
@@ -76,18 +77,16 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
         // Lazy render
         if *turn != last_turn || new_p1_time != last_p1_time || new_p2_time != last_p2_time {
             last_turn = turn.clone();
-            render(delay, lcd, &new_p1_time, &new_p2_time, turn, writer)?;
+            render(delay, lcd, &new_p1_time, &new_p2_time, turn, writer)
+                .map_err(|_| RuntimeError::LcdError)?;
             last_p1_time = new_p1_time;
             last_p2_time = new_p2_time;
         } else {
             delay_ms(LOOP_DELAY);
         }
 
-        if start.update(
-            start_pin
-                .is_low()
-                .map_err(|_| hd44780_driver::error::Error)?,
-        ) == Some(debouncr::Edge::Falling)
+        if start.update(start_pin.is_low().map_err(|_| RuntimeError::PinReadError)?)
+            == Some(debouncr::Edge::Falling)
         {
             // Unsafe subtraction since it's already been checked in the rendering code
             match *turn {
@@ -101,11 +100,8 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
             // Start button released; pause the game
             break finish_countdown(p1_ms_at_change, p2_ms_at_change, p1_time, p2_time);
         }
-        if down.update(
-            down_pin
-                .is_low()
-                .map_err(|_| hd44780_driver::error::Error)?,
-        ) == Some(debouncr::Edge::Rising)
+        if down.update(down_pin.is_low().map_err(|_| RuntimeError::PinReadError)?)
+            == Some(debouncr::Edge::Rising)
             && *turn == Turn::P1
         {
             // Down/P1 press (switch to P2)
@@ -114,7 +110,7 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
             last_change_time = millis();
             *turn = Turn::P2
         }
-        if up.update(up_pin.is_low().map_err(|_| hd44780_driver::error::Error)?)
+        if up.update(up_pin.is_low().map_err(|_| RuntimeError::PinReadError)?)
             == Some(debouncr::Edge::Rising)
             && *turn == Turn::P2
         {

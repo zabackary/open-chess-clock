@@ -8,7 +8,7 @@ use embedded_hal::digital::v2::InputPin;
 use hd44780_driver::{bus::DataBus, HD44780};
 use ufmt::{derive::uDebug, uwrite};
 
-use crate::{lcd_writer::LcdWriter, LCD_LINE_LENGTH};
+use crate::{error::RuntimeError, lcd_writer::LcdWriter, LCD_LINE_LENGTH};
 
 const BLINK_DURATION: u16 = 100;
 const HOLD_THRESHOLD: u16 = 150;
@@ -83,12 +83,15 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
     delay: &mut Delay,
     lcd: &RefCell<HD44780<B>>,
     writer: &mut LcdWriter<'_, B>,
-) -> Result<(TimeSetting, TimeSetting), hd44780_driver::error::Error> {
-    lcd.borrow_mut().set_cursor_pos(0, delay)?;
-    uwrite!(writer, "P1  Set time  P2")?;
+) -> Result<(TimeSetting, TimeSetting), RuntimeError> {
     lcd.borrow_mut()
-        .set_cursor_pos(LCD_LINE_LENGTH * 1, delay)?;
-    uwrite!(writer, "0:00:00  0:00:00")?;
+        .set_cursor_pos(0, delay)
+        .map_err(|_| RuntimeError::LcdError)?;
+    uwrite!(writer, "P1  Set time  P2").map_err(|_| RuntimeError::LcdError)?;
+    lcd.borrow_mut()
+        .set_cursor_pos(LCD_LINE_LENGTH * 1, delay)
+        .map_err(|_| RuntimeError::LcdError)?;
+    uwrite!(writer, "0:00:00  0:00:00").map_err(|_| RuntimeError::LcdError)?;
 
     let mut state = TimeSetPart::P1SetMin;
     let mut p1_setting = TimeSetting::new(0);
@@ -113,7 +116,7 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
         }
 
         // Update states
-        if up.update(up_pin.is_low().map_err(|_| hd44780_driver::error::Error)?)
+        if up.update(up_pin.is_low().map_err(|_| RuntimeError::PinReadError)?)
             == Some(debouncr::Edge::Rising)
         {
             // Up press
@@ -144,11 +147,8 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
             up_hold_count = HOLD_THRESHOLD
         }
 
-        if down.update(
-            down_pin
-                .is_low()
-                .map_err(|_| hd44780_driver::error::Error)?,
-        ) == Some(debouncr::Edge::Rising)
+        if down.update(down_pin.is_low().map_err(|_| RuntimeError::PinReadError)?)
+            == Some(debouncr::Edge::Rising)
         {
             // Down press
             match state {
@@ -178,11 +178,8 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
             down_hold_count = HOLD_THRESHOLD
         }
 
-        if start.update(
-            start_pin
-                .is_low()
-                .map_err(|_| hd44780_driver::error::Error)?,
-        ) == Some(debouncr::Edge::Falling)
+        if start.update(start_pin.is_low().map_err(|_| RuntimeError::PinReadError)?)
+            == Some(debouncr::Edge::Falling)
         {
             // Start button released; go to next portion
             state = match state {
@@ -195,11 +192,13 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
 
         // Render results
         lcd.borrow_mut()
-            .set_cursor_pos(LCD_LINE_LENGTH * 1, delay)?;
+            .set_cursor_pos(LCD_LINE_LENGTH * 1, delay)
+            .map_err(|_| RuntimeError::LcdError)?;
         let new_blink = if blink { Some(state) } else { None };
         if p1_setting != last_p1_setting || p2_setting != last_p2_setting || new_blink != last_blink
         {
-            render_time(&p1_setting, &p2_setting, new_blink, writer)?;
+            render_time(&p1_setting, &p2_setting, new_blink, writer)
+                .map_err(|_| RuntimeError::LcdError)?;
             last_p1_setting = p1_setting;
             last_p2_setting = p2_setting;
             last_blink = new_blink;

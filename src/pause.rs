@@ -6,6 +6,7 @@ use hd44780_driver::{bus::DataBus, HD44780};
 use ufmt::uwrite;
 
 use crate::{
+    error::RuntimeError,
     lcd_writer::LcdWriter,
     time_set::{render_time, TimeSetting},
     LCD_LINE_LENGTH,
@@ -30,14 +31,15 @@ pub fn pause<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
     p1_time: &TimeSetting,
     p2_time: &TimeSetting,
     initial_pause: bool,
-) -> Result<PauseResult, hd44780_driver::error::Error> {
+) -> Result<PauseResult, RuntimeError> {
     let mut down = debouncr::debounce_4(false);
     let mut up = debouncr::debounce_4(false);
     let mut start = debouncr::debounce_4(false);
 
     lcd.borrow_mut()
-        .set_cursor_pos(LCD_LINE_LENGTH * 1, delay)?;
-    render_time(p1_time, p2_time, None, writer)?;
+        .set_cursor_pos(LCD_LINE_LENGTH * 1, delay)
+        .map_err(|_| RuntimeError::LcdError)?;
+    render_time(p1_time, p2_time, None, writer).map_err(|_| RuntimeError::LcdError)?;
 
     let mut blink_count = 0;
     let mut last_blink = u8::MAX;
@@ -51,45 +53,46 @@ pub fn pause<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
 
         // Lazy render
         if blink != last_blink {
-            lcd.borrow_mut().set_cursor_pos(0, delay)?;
-            if initial_pause {
-                match blink {
-                    0 => uwrite!(writer, " P1/P2 to begin ")?,
-                    1 => uwrite!(writer, "START to cancel ")?,
-                    _ => uwrite!(writer, " P1          P2 ")?,
+            lcd.borrow_mut()
+                .set_cursor_pos(0, delay)
+                .map_err(|_| RuntimeError::LcdError)?;
+            uwrite!(
+                writer,
+                "{}",
+                if initial_pause {
+                    match blink {
+                        0 => " P1/P2 to begin ",
+                        1 => "START to cancel ",
+                        _ => " P1          P2 ",
+                    }
+                } else {
+                    match blink {
+                        0 => " P1  Paused  P2 ",
+                        1 => "START to restart",
+                        _ => "P1/P2 to resume ",
+                    }
                 }
-            } else {
-                match blink {
-                    0 => uwrite!(writer, " P1  Paused  P2 ")?,
-                    1 => uwrite!(writer, "START to restart")?,
-                    _ => uwrite!(writer, "P1/P2 to resume ")?,
-                }
-            }
+            )
+            .map_err(|_| RuntimeError::LcdError)?;
             last_blink = blink;
         } else {
             delay_ms(LOOP_DELAY);
         }
 
         // Respond to input
-        if start.update(
-            start_pin
-                .is_low()
-                .map_err(|_| hd44780_driver::error::Error)?,
-        ) == Some(debouncr::Edge::Falling)
+        if start.update(start_pin.is_low().map_err(|_| RuntimeError::PinReadError)?)
+            == Some(debouncr::Edge::Falling)
         {
             // Start button released; reset and prompt for new time
             break PauseResult::Stopped;
         }
-        if down.update(
-            down_pin
-                .is_low()
-                .map_err(|_| hd44780_driver::error::Error)?,
-        ) == Some(debouncr::Edge::Rising)
+        if down.update(down_pin.is_low().map_err(|_| RuntimeError::PinReadError)?)
+            == Some(debouncr::Edge::Rising)
         {
             // Down/P1 press; exit to P1 countdown
             break PauseResult::ResumedP1;
         }
-        if up.update(up_pin.is_low().map_err(|_| hd44780_driver::error::Error)?)
+        if up.update(up_pin.is_low().map_err(|_| RuntimeError::PinReadError)?)
             == Some(debouncr::Edge::Rising)
         {
             // Up/P2 press; exit to P2 countdown
