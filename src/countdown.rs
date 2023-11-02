@@ -89,9 +89,10 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, BP: OutputPin, B: Dat
         if remaining_buzzer_duration > 0 {
             remaining_buzzer_duration -= 1;
         }
-        if (new_p1_ms <= 1000 * 10 && new_p1_ms % 1000 == 0)
-            || (new_p2_ms <= 1000 * 10 && new_p2_ms % 1000 == 0)
-        {
+        if match *turn {
+            Turn::P1 => new_p1_ms <= 1000 * 10 && new_p1_ms % 1000 == 0,
+            Turn::P2 => new_p2_ms <= 1000 * 10 && new_p2_ms % 1000 == 0,
+        } {
             buzzer_pin
                 .set_high()
                 .map_err(|_| RuntimeError::PinWriteError)?;
