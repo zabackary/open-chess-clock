@@ -1,13 +1,15 @@
-# OpenChessClock
+# Open Chess Clock
 
 A simple chess clock for the _Arduino Uno_ (specifically the r3, though it
-probably doesn't matter). Basically, it has an up/P1 button, a down/P2 button,
-and a start/stop button for configuration.
+probably doesn't matter) that, since it uses `embedded-hal`, can easily be
+adapted for other platforms. Basically, it has an up/P1 button, a down/P2
+button, and a start/stop/select button for configuration.
 
-> Note: On my Arduino Uno r3, there is about a half-second drift per minute of
+> [!NOTE]
+> On my Arduino Uno r3, there is about a half-second drift per minute of
 > runtime compared to my computer clock.
 
-## Instructions for use
+## Instructions for use (after set-up)
 
 How do I use this chess clock?
 
@@ -32,20 +34,20 @@ How do I use this chess clock?
 State diagram
 
 ```
-                      .----------------.
-                      |                |
-                      v                | UP/DN
-┌----------┐ ST  ┌-----------┐ ST  ┌-------┐
-| Time set | --> | Countdown | --> | Pause |
-└----------┘     └-----------┘     └-------┘
-    ^  ^               | (finish)      | ST
-    |  |               |               |
-    |  `---------------|---------------'
-    |                  |
-    |                  v
-    |        ST ┌------------┐
-    `---------- | Win screen |
-                └------------┘
+                                      .----------------.
+                                      |                |
+                                      v                | UP/DN
+┌--------┐     ┌----------┐ ST  ┌-----------┐ ST  ┌-------┐
+| Splash | --> | Time set | --> | Countdown | --> | Pause |
+└--------┘     └----------┘     └-----------┘     └-------┘
+                   ^  ^               | (finish)      | ST
+                   |  |               |               |
+                   |  `---------------|---------------'
+                   |                  |
+                   |                  v
+                   |        ST ┌------------┐
+                   `---------- | Win screen |
+                               └------------┘
 ```
 
 Time set ([`time_set.rs`](./src/time_set.rs)):
@@ -97,12 +99,13 @@ Time's up!  [P2]
    LCD d7 => Arduino d12  
    The LCD backlight cathode and anode should be connected, and the contrast
    should be set to an appropriate amount using a pot. Of course, make sure the
-   LCD has 5V power.
-2. **Buttons**  
+   LCD has 5V power (unlike me, who attached it to 2.7V and spent an hour trying
+   to fix it).
+3. **Buttons**  
    Down button => Arduino d2 & GND (also functions as P1 button)  
    Start button => Arduino d3 & GND  
    Up button => Arduino d4 & GND (also functions as P2 button)
-3. **Buzzer** (optional)  
+4. **Buzzer** (optional)  
    Buzzer anode => Arduino d6
 
 ## Build Instructions
@@ -127,9 +130,9 @@ Time's up!  [P2]
 Licensed under either of
 
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
-  <http://www.apache.org/licenses/LICENSE-2.0>)
+  <https://www.apache.org/licenses/LICENSE-2.0>)
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or
-  <http://opensource.org/licenses/MIT>)
+  <https://opensource.org/licenses/MIT>)
 
 at your option.
 
