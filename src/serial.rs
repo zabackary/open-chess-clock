@@ -3,6 +3,7 @@ use embedded_hal::serial::{Read, Write};
 
 use crate::millis::millis;
 
+/// Note: all arguments are big-endian
 pub enum SerialMsg {
     /// Just send HandshakeResponse back if you get this.
     ///
@@ -57,7 +58,7 @@ pub struct SerialHandler<USART: UsartOps<Atmega, RX, TX>, RX, TX> {
 
 impl<USART: UsartOps<Atmega, RX, TX>, RX, TX> SerialHandler<USART, RX, TX> {
     fn write_u16(&mut self, v: u16) -> nb::Result<(), void::Void> {
-        let bytes = v.to_le_bytes();
+        let bytes = v.to_be_bytes();
         self.serial.write(bytes[0])?;
         self.serial.write(bytes[1])?;
         Ok(())
