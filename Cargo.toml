@@ -19,6 +19,10 @@ avr-device = "0.5.2"
 hd44780-driver = "0.4.0"
 debouncr = "0.2.2"
 
+[dependencies.void]
+version = "1.0.2"
+default-features = false
+
 [dependencies.arduino-hal]
 git = "https://github.com/rahix/avr-hal"
 rev = "7dfa6d322b9df98b2d98afe0e14a97afe0187ac1"

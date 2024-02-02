@@ -5,14 +5,16 @@
 
 use core::cell::RefCell;
 
-use arduino_hal::{delay_ms, Delay};
+use arduino_hal::{default_serial, delay_ms, hal::Atmega, usart::UsartOps, Delay};
 use countdown::Turn;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 use error::RuntimeError;
 use hd44780_driver::{bus::DataBus, DisplayMode, HD44780};
 use lcd_writer::LcdWriter;
 use panic_halt as _;
+use serial::SerialHandler;
 use ufmt::uwrite;
+use void::ResultVoidExt;
 
 mod countdown;
 mod error;
@@ -20,10 +22,13 @@ mod finish;
 mod lcd_writer;
 mod millis;
 mod pause;
+mod serial;
 mod time_set;
 
 const LCD_LINE_LENGTH: u8 = 40;
 const SPLASH_DURATION: u16 = 1500;
+const CONNECTION_TIMEOUT_MS: u16 = 500;
+const MSG_DURATION: u16 = 1500;
 
 #[arduino_hal::entry]
 fn main() -> ! {
@@ -39,6 +44,9 @@ fn main() -> ! {
     let start_btn = pins.d3.into_pull_up_input();
 
     let buzzer = pins.d6.into_output();
+
+    let serial = default_serial!(dp, pins, 57600);
+    let serial_handler = SerialHandler::new(serial);
 
     let mut lcd_delay = Delay::new();
     let lcd_d4 = pins.d9.into_output();
@@ -81,6 +89,7 @@ fn main() -> ! {
         up_btn,
         start_btn,
         buzzer,
+        serial_handler,
         &mut lcd_delay,
         &lcd,
         &mut writer,
@@ -100,11 +109,21 @@ fn main() -> ! {
     }
 }
 
-fn runtime<DP: InputPin, UP: InputPin, SP: InputPin, BP: OutputPin, B: DataBus>(
+fn runtime<
+    DP: InputPin,
+    UP: InputPin,
+    SP: InputPin,
+    BP: OutputPin,
+    USART: UsartOps<Atmega, RX, TX>,
+    RX,
+    TX,
+    B: DataBus,
+>(
     mut down_btn: DP,
     mut up_btn: UP,
     mut start_btn: SP,
     mut buzzer: BP,
+    mut serial_handler: SerialHandler<USART, RX, TX>,
     lcd_delay: &mut Delay,
     lcd: &RefCell<HD44780<B>>,
     writer: &mut LcdWriter<'_, B>,
@@ -123,6 +142,26 @@ fn runtime<DP: InputPin, UP: InputPin, SP: InputPin, BP: OutputPin, B: DataBus>(
     let version = env!("CARGO_PKG_VERSION");
     uwrite!(writer, "     v{}     ", version).map_err(|_| RuntimeError::LcdError)?;
     delay_ms(SPLASH_DURATION);
+    lcd.borrow_mut()
+        .set_cursor_pos(LCD_LINE_LENGTH * 1, lcd_delay)
+        .map_err(|_| RuntimeError::LcdError)?;
+    uwrite!(writer, "  Connecting... ").map_err(|_| RuntimeError::LcdError)?;
+    let connected =
+        nb::block!(serial_handler.check_connection(CONNECTION_TIMEOUT_MS)).void_unwrap();
+    lcd.borrow_mut()
+        .set_cursor_pos(LCD_LINE_LENGTH * 1, lcd_delay)
+        .map_err(|_| RuntimeError::LcdError)?;
+    uwrite!(
+        writer,
+        "{}",
+        if connected {
+            "   Connected.   "
+        } else {
+            " No connection. "
+        }
+    )
+    .map_err(|_| RuntimeError::LcdError)?;
+    delay_ms(MSG_DURATION);
 
     'main: loop {
         // Prompt the user to set up the time
