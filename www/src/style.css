@@ -1,0 +1,404 @@
+* {
+  box-sizing: border-box;
+  user-select: none;
+}
+
+@keyframes focus-jump {
+  0% {
+    outline-width: 0;
+    outline-color: transparent;
+  }
+  50% {
+    outline-width: 0.5em;
+    outline-color: var(--system-accent);
+  }
+  100% {
+    outline-width: 0.2em;
+    outline-color: var(--system-accent);
+  }
+}
+@keyframes focus-jump-counter {
+  0% {
+    outline-width: 0;
+    outline-color: transparent;
+  }
+  50% {
+    outline-width: 1em;
+    outline-color: var(--counter-accent);
+  }
+  100% {
+    outline-width: 0.5em;
+    outline-color: var(--counter-accent);
+  }
+}
+
+:root {
+  --background: #000;
+  --foreground: #fff;
+  --system-accent: #f88;
+  --elevated-1: #855;
+  --elevated-2: #a77;
+
+  --neutral-elevated: #333;
+  --p1-accent: #faa;
+  --p1-fill: #f006;
+  --p1-fill-active: #f008;
+  --p2-accent: #aaf;
+  --p2-fill: #00f6;
+  --p2-fill-active: #00f8;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  background-color: var(--background);
+  color: var(--foreground);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+}
+
+.button,
+button.text-button,
+button.icon-button {
+  font-size: 1em;
+  font-family: inherit;
+  border-radius: 9999px;
+  background-color: var(--elevated-1);
+  padding: 0 1.5em;
+  line-height: 2.5em;
+  border: 0;
+  color: var(--foreground);
+  cursor: pointer;
+  outline: 0 solid transparent;
+  outline-offset: 0.25em;
+  transition: 300ms;
+  margin-right: 0.5em;
+  &.icon-button {
+    width: 2.5em;
+    height: 2.5em;
+    padding: 0;
+    svg {
+      margin: 0.5em;
+    }
+  }
+  &.outlined {
+    border: 1px solid var(--system-accent);
+  }
+  &[disabled] {
+    opacity: 0.6;
+    cursor: default;
+  }
+  &:not([disabled]) {
+    &:hover,
+    &:focus {
+      background-color: var(--elevated-2);
+    }
+    &:focus {
+      outline-width: 0.2em;
+      outline-color: var(--system-accent);
+      animation: focus-jump 500ms;
+    }
+    &:active {
+      opacity: 0.9;
+    }
+  }
+}
+
+a,
+.link {
+  color: var(--system-accent);
+  text-decoration: underline;
+  cursor: pointer;
+  &:hover,
+  &:focus {
+    text-decoration: none;
+  }
+  &:active {
+    background-color: var(--system-accent);
+    color: var(--foreground);
+  }
+}
+
+.header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin: 0 1em;
+  h1 {
+    font-size: 1.4em;
+    flex-grow: 1;
+    .status {
+      opacity: 0.8;
+      font-weight: normal;
+      font-size: 1rem;
+      vertical-align: middle;
+    }
+  }
+  #hint {
+    margin: 0 1em;
+    opacity: 0.6;
+  }
+  #controls {
+    display: flex;
+    &.hidden {
+      display: none;
+    }
+  }
+}
+.counter-container {
+  display: flex;
+  margin: 2em;
+  flex-grow: 1;
+  flex-direction: row;
+  height: 100%;
+  gap: 4em;
+  align-items: stretch;
+  position: relative;
+  z-index: 2;
+  .popup {
+    position: absolute;
+    inset: -1em;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    display: none;
+    backdrop-filter: blur(4px);
+  }
+  .picker-container {
+    .connect-container {
+      text-align: center;
+      .whats-this {
+        margin: 0.5em 0 0 0;
+        summary {
+          display: inline;
+          padding-left: 2.2rem;
+          position: relative;
+          cursor: pointer;
+        }
+
+        summary:before {
+          content: "";
+          border-width: 0.4rem;
+          border-style: solid;
+          border-color: transparent transparent transparent var(--foreground);
+          position: absolute;
+          top: 0.3rem;
+          left: 1rem;
+          transform: rotate(0);
+          transform-origin: 0.2rem 50%;
+          transition: 0.25s transform ease;
+        }
+
+        &[open] > summary:before {
+          transform: rotate(90deg);
+        }
+
+        summary::marker {
+          display: none;
+        }
+
+        .whats-this-popup {
+          border: 3px solid var(--system-accent);
+          border-radius: 1em;
+          background-color: var(--background);
+          max-width: 500px;
+          padding: 1em;
+          position: absolute;
+          z-index: 3;
+          left: 50%;
+          transform: translateX(-50%) scale(0.8);
+          opacity: 0;
+          transform-origin: top;
+          transition: 100ms;
+        }
+
+        &[open] > .whats-this-popup {
+          transform: translateX(-50%) scale(1);
+          opacity: 1;
+        }
+      }
+    }
+    .or {
+      font-style: italic;
+      opacity: 0.8;
+    }
+  }
+  .connecting-container {
+    font-size: 2em;
+  }
+  &.show-picker .picker-container {
+    display: flex;
+  }
+  &.show-connecting .connecting-container {
+    display: flex;
+  }
+  .counter {
+    border: 2px solid var(--counter-accent);
+    background-color: var(--counter-fill);
+    color: var(--counter-accent);
+    border-radius: 4em;
+    flex-grow: 1;
+    position: relative;
+    overflow: hidden;
+    font-family: inherit;
+    transition: 300ms;
+    .time {
+      position: absolute;
+      top: calc(50% - 6px);
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 8em;
+      z-index: 1;
+      font-variant-numeric: tabular-nums;
+      span {
+        color: var(--foreground);
+        position: relative;
+        top: 6px;
+        font-weight: lighter;
+        transition: 300ms;
+      }
+    }
+    &:not([disabled]) {
+      border-width: 0.5em;
+      cursor: pointer;
+      outline: 0 solid transparent;
+      outline-offset: 0.5em;
+      & .time span {
+        font-weight: normal;
+      }
+      &:hover,
+      &:focus {
+        outline-width: 0.5em;
+        outline-color: var(--counter-accent);
+        animation: focus-jump-counter 500ms;
+      }
+    }
+    &.active {
+      border-width: 1em;
+      & .time span {
+        font-weight: bold;
+      }
+    }
+    &::after {
+      content: "";
+      position: absolute;
+      --height: calc(100% * var(--progress));
+      top: calc(100% - var(--height));
+      left: 0;
+      right: 0;
+      height: var(--height);
+      background-color: var(--counter-overlay);
+    }
+    &.p1 {
+      --counter-fill: var(--neutral-elevated);
+      --counter-overlay: var(--p1-fill);
+      --counter-accent: var(--p1-accent);
+      &.active {
+        --counter-fill: var(--p1-fill);
+        --counter-overlay: var(--p1-fill-active);
+      }
+    }
+    &.p2 {
+      --counter-fill: var(--neutral-elevated);
+      --counter-overlay: var(--p2-fill);
+      --counter-accent: var(--p2-accent);
+      &.active {
+        --counter-fill: var(--p2-fill);
+        --counter-overlay: var(--p2-fill-active);
+      }
+    }
+  }
+  &.show-picker .counter,
+  &.show-connecting .counter {
+    opacity: 0.5;
+  }
+}
+
+.custom-dialog {
+  position: fixed;
+  top: 4em;
+  width: calc(100% - 1em);
+  left: 50%;
+  max-width: 480px;
+  transform: translate(-50%);
+  z-index: 4;
+  background-color: var(--elevated-1);
+  border-radius: 2em;
+  padding: 1.5em;
+  text-align: center;
+  box-shadow: 0 0 1em #000;
+  display: none;
+
+  h2 {
+    font-size: 1.5em;
+    font-weight: normal;
+    margin-top: 0;
+    text-align: left;
+  }
+
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0;
+  }
+
+  .time-select {
+    font-size: 2em;
+    .label {
+      font-size: 0.5em;
+    }
+    input {
+      width: 40px;
+      font: inherit;
+      color: inherit;
+      background-color: var(--elevated-2);
+      border-radius: 0.3em;
+      border: 0;
+      outline: 0 solid transparent;
+      outline-offset: 0.05em;
+
+      &::-webkit-outer-spin-button,
+      &::-webkit-inner-spin-button {
+        display: none;
+      }
+
+      &[type="number"] {
+        appearance: textfield;
+      }
+
+      &[disabled] {
+        opacity: 0.6;
+        cursor: default;
+      }
+
+      &:not([disabled]) {
+        &:hover,
+        &:focus {
+          background-color: var(--elevated-2);
+        }
+        &:focus {
+          outline-width: 0.1em;
+          outline-color: var(--system-accent);
+        }
+        &:active {
+          opacity: 0.9;
+        }
+      }
+    }
+  }
+
+  &.open {
+    display: block;
+  }
+
+  &.open + .scrim {
+    position: fixed;
+    z-index: 3;
+    inset: 0;
+    background-color: #0008;
+  }
+}
