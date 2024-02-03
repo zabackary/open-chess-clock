@@ -28,6 +28,16 @@ export default class SerialClock extends Clock {
         this.updateTimes(args[0], args[1]);
         break;
       }
+      case "p1Finish": {
+        this.loser = "p1";
+        this.p1Time = 0;
+        break;
+      }
+      case "p2Finish": {
+        this.loser = "p2";
+        this.p2Time = 0;
+        break;
+      }
       case "pause": {
         this.pause();
         break;

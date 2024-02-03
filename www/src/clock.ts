@@ -11,15 +11,21 @@ export default class Clock {
   p1TimeInitial = 0;
   p2TimeInitial = 0;
 
+  loser: Player | null = null;
+
   readonly = false;
 
   get p1Time() {
     if (this.p1TimeStartDate === null) {
       return this.p1TimeStart;
     }
-    return (
-      this.p1TimeStart - (new Date().getTime() - this.p1TimeStartDate.getTime())
-    );
+    let time =
+      this.p1TimeStart -
+      (new Date().getTime() - this.p1TimeStartDate.getTime());
+    if (time <= 0) {
+      time = 0;
+    }
+    return time;
   }
 
   set p1Time(newTime) {
@@ -31,9 +37,13 @@ export default class Clock {
     if (this.p2TimeStartDate === null) {
       return this.p2TimeStart;
     }
-    return (
-      this.p2TimeStart - (new Date().getTime() - this.p2TimeStartDate.getTime())
-    );
+    let time =
+      this.p2TimeStart -
+      (new Date().getTime() - this.p2TimeStartDate.getTime());
+    if (time <= 0) {
+      time = 0;
+    }
+    return time;
   }
 
   set p2Time(newTime) {
@@ -51,6 +61,15 @@ export default class Clock {
     this.p1TimeStartDate = null;
     this.p2TimeStart = this.p2Time;
     this.p2TimeStartDate = null;
+  }
+
+  checkForLoser(): Player | null {
+    if (this.p1Time === 0) {
+      this.loser = "p1";
+    } else if (this.p2Time === 0) {
+      this.loser = "p2";
+    }
+    return this.loser;
   }
 
   startPlayer(player: Player, time: number | null = null) {

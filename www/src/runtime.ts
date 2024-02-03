@@ -15,6 +15,7 @@ const READONLY_RESUME_HINT =
   "Press a side to resume. Pressing START will start a new game";
 const SWITCH_HINT = "Press your side to switch the clock";
 
+const winner = expectEl(document.querySelector("#winner"));
 const counterContainer = expectEl(document.querySelector(".counter-container"));
 const p1Counter = expectEl(document.querySelector(".p1.counter"));
 const p1TimeElements = [
@@ -46,7 +47,7 @@ export function runtime(clock: Clock) {
     controls.classList.remove("hidden");
   }
   let hasStarted = false;
-  setInterval(() => {
+  const updateInterval = setInterval(() => {
     if (clock instanceof SerialClock) {
       status.textContent = clock.connected
         ? READONLY_STATUS
@@ -105,6 +106,12 @@ export function runtime(clock: Clock) {
         p2Counter.removeAttribute("disabled");
         pauseButton.setAttribute("disabled", "");
       }
+    }
+    if (!clock.readonly) clock.checkForLoser();
+    if (clock.loser !== null) {
+      clearInterval(updateInterval);
+      winner.textContent = clock.loser === "p1" ? "Player 2" : "Player 1";
+      counterContainer.classList.add("show-winner");
     }
   });
   pauseButton.addEventListener("click", () => {
