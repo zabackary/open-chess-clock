@@ -3,12 +3,17 @@ use core::{
     ops::{AddAssign, SubAssign},
 };
 
-use arduino_hal::{delay_ms, Delay};
+use arduino_hal::{delay_ms, hal::Atmega, usart::UsartOps, Delay};
 use embedded_hal::digital::v2::InputPin;
 use hd44780_driver::{bus::DataBus, HD44780};
 use ufmt::{derive::uDebug, uwrite};
 
-use crate::{error::RuntimeError, lcd_writer::LcdWriter, LCD_LINE_LENGTH};
+use crate::{
+    error::RuntimeError,
+    lcd_writer::LcdWriter,
+    serial::{SerialHandler, SerialMsg},
+    LCD_LINE_LENGTH,
+};
 
 const BLINK_DURATION: u16 = 100;
 const HOLD_THRESHOLD: u16 = 150;
@@ -76,10 +81,19 @@ impl SubAssign<u16> for TimeSetting {
 ///   pins.d3.into_input()  // Select button
 /// );
 /// ```
-pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
+pub fn time_set<
+    DP: InputPin,
+    UP: InputPin,
+    SP: InputPin,
+    B: DataBus,
+    USART: UsartOps<Atmega, RX, TX>,
+    RX,
+    TX,
+>(
     down_pin: &mut DP,
     up_pin: &mut UP,
     start_pin: &mut SP,
+    serial_handler: &mut SerialHandler<USART, RX, TX>,
     delay: &mut Delay,
     lcd: &RefCell<HD44780<B>>,
     writer: &mut LcdWriter<'_, B>,
@@ -195,6 +209,12 @@ pub fn time_set<DP: InputPin, UP: InputPin, SP: InputPin, B: DataBus>(
             .set_cursor_pos(LCD_LINE_LENGTH * 1, delay)
             .map_err(|_| RuntimeError::LcdError)?;
         let new_blink = if blink { Some(state) } else { None };
+        if p1_setting != last_p1_setting || p2_setting != last_p2_setting {
+            serial_handler.write(SerialMsg::Sync {
+                p1_time: p1_setting.into_millis(),
+                p2_time: p2_setting.into_millis(),
+            });
+        }
         if p1_setting != last_p1_setting || p2_setting != last_p2_setting || new_blink != last_blink
         {
             render_time(&p1_setting, &p2_setting, new_blink, writer)

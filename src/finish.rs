@@ -1,17 +1,18 @@
 use core::cell::RefCell;
 
-use arduino_hal::{delay_ms, Delay};
+use arduino_hal::{delay_ms, hal::Atmega, usart::UsartOps, Delay};
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 use hd44780_driver::{bus::DataBus, HD44780};
 use ufmt::uwrite;
 
-use crate::{countdown::Turn, error::RuntimeError, lcd_writer::LcdWriter};
+use crate::{countdown::Turn, error::RuntimeError, lcd_writer::LcdWriter, serial::SerialHandler};
 
 const LOOP_DELAY: u16 = 5;
 const BUZZER_LENGTH: u16 = 120;
 
-pub fn finish<SP: InputPin, BP: OutputPin, B: DataBus>(
+pub fn finish<SP: InputPin, BP: OutputPin, B: DataBus, USART: UsartOps<Atmega, RX, TX>, RX, TX>(
     loser: &Turn,
+    _serial_handler: &mut SerialHandler<USART, RX, TX>,
     delay: &mut Delay,
     lcd: &RefCell<HD44780<B>>,
     writer: &mut LcdWriter<'_, B>,

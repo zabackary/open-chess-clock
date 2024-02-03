@@ -1,6 +1,6 @@
 use core::cell::RefCell;
 
-use arduino_hal::{delay_ms, Delay};
+use arduino_hal::{delay_ms, hal::Atmega, usart::UsartOps, Delay};
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 use hd44780_driver::{bus::DataBus, HD44780};
 use ufmt::uwrite;
@@ -9,6 +9,7 @@ use crate::{
     error::RuntimeError,
     lcd_writer::LcdWriter,
     millis::millis,
+    serial::{SerialHandler, SerialMsg},
     time_set::{render_time, TimeSetting},
     LCD_LINE_LENGTH,
 };
@@ -28,11 +29,21 @@ pub enum Turn {
     P2,
 }
 
-pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, BP: OutputPin, B: DataBus>(
+pub fn countdown<
+    DP: InputPin,
+    UP: InputPin,
+    SP: InputPin,
+    BP: OutputPin,
+    B: DataBus,
+    USART: UsartOps<Atmega, RX, TX>,
+    RX,
+    TX,
+>(
     down_pin: &mut DP,
     up_pin: &mut UP,
     start_pin: &mut SP,
     buzzer_pin: &mut BP,
+    serial_handler: &mut SerialHandler<USART, RX, TX>,
     delay: &mut Delay,
     lcd: &RefCell<HD44780<B>>,
     writer: &mut LcdWriter<'_, B>,
@@ -110,6 +121,8 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, BP: OutputPin, B: Dat
             delay_ms(LOOP_DELAY);
         }
 
+        let _msg = serial_handler.read().ok();
+
         if start.update(start_pin.is_low().map_err(|_| RuntimeError::PinReadError)?)
             == Some(debouncr::Edge::Falling)
         {
@@ -132,6 +145,9 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, BP: OutputPin, B: Dat
             // Down/P1 press (switch to P2)
             // Unsafe subtraction since it's already been checked in the rendering code
             p1_ms_at_change = p1_ms_at_change - time_since_change;
+            let _ = serial_handler.write(SerialMsg::StartP2 {
+                p1_time: p1_ms_at_change, // TODO: fix this
+            });
             last_change_time = millis();
             *turn = Turn::P2
         }
@@ -142,6 +158,9 @@ pub fn countdown<DP: InputPin, UP: InputPin, SP: InputPin, BP: OutputPin, B: Dat
             // Up/P2 press (switch to P1)
             // Unsafe subtraction since it's already been checked in the rendering code
             p2_ms_at_change = p2_ms_at_change - time_since_change;
+            let _ = serial_handler.write(SerialMsg::StartP1 {
+                p2_time: p2_ms_at_change, // TODO: fix this
+            });
             last_change_time = millis();
             *turn = Turn::P1;
         }

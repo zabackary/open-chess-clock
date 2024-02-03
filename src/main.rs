@@ -12,7 +12,7 @@ use error::RuntimeError;
 use hd44780_driver::{bus::DataBus, DisplayMode, HD44780};
 use lcd_writer::LcdWriter;
 use panic_halt as _;
-use serial::SerialHandler;
+use serial::{SerialHandler, SerialMsg};
 use ufmt::uwrite;
 use void::ResultVoidExt;
 
@@ -169,6 +169,7 @@ fn runtime<
             &mut down_btn,
             &mut up_btn,
             &mut start_btn,
+            &mut serial_handler,
             lcd_delay,
             &lcd,
             writer,
@@ -189,11 +190,20 @@ fn runtime<
             pause::PauseResult::Stopped => continue 'main,
         };
         let loser = loop {
+            serial_handler.write(match turn {
+                Turn::P1 => SerialMsg::StartP1 {
+                    p2_time: times.1.into_millis(),
+                },
+                Turn::P2 => SerialMsg::StartP2 {
+                    p1_time: times.0.into_millis(),
+                },
+            });
             match countdown::countdown(
                 &mut down_btn,
                 &mut up_btn,
                 &mut start_btn,
                 &mut buzzer,
+                &mut serial_handler,
                 lcd_delay,
                 &lcd,
                 writer,
@@ -205,6 +215,12 @@ fn runtime<
                 countdown::CountdownResult::FinishedP2 => break Turn::P2,
                 countdown::CountdownResult::Paused => (),
             }
+            serial_handler.write(SerialMsg::Pause {
+                time: match turn {
+                    Turn::P1 => times.0.into_millis(),
+                    Turn::P2 => times.1.into_millis(),
+                },
+            });
             match pause::pause(
                 &mut down_btn,
                 &mut up_btn,
@@ -221,6 +237,18 @@ fn runtime<
                 pause::PauseResult::Stopped => continue 'main,
             }
         };
-        finish::finish(&loser, lcd_delay, &lcd, writer, &mut start_btn, &mut buzzer)?;
+        serial_handler.write(match loser {
+            Turn::P1 => SerialMsg::P1Finish,
+            Turn::P2 => SerialMsg::P2Finish,
+        });
+        finish::finish(
+            &loser,
+            &mut serial_handler,
+            lcd_delay,
+            &lcd,
+            writer,
+            &mut start_btn,
+            &mut buzzer,
+        )?;
     }
 }
