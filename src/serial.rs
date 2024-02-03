@@ -72,6 +72,14 @@ impl SerialMsg {
             SerialMsg::P2Finish => 0xc7,
         }
     }
+
+    fn is_connection_message(&self) -> bool {
+        match *self {
+            SerialMsg::Handshake { mode: _ } => true,
+            SerialMsg::HandshakeResponse { selected_mode: _ } => true,
+            _ => false,
+        }
+    }
 }
 
 pub struct SerialHandler<USART: UsartOps<Atmega, RX, TX>, RX, TX> {
@@ -91,29 +99,32 @@ impl<USART: UsartOps<Atmega, RX, TX>, RX, TX> SerialHandler<USART, RX, TX> {
     }
 
     pub fn write(&mut self, msg: SerialMsg) {
-        self.serial.write_byte(msg.to_u8());
-        match msg {
-            SerialMsg::Handshake { mode } => {
-                self.write_u32(mode);
+        // don't write to serial if not connected
+        if self.connected || msg.is_connection_message() {
+            self.serial.write_byte(msg.to_u8());
+            match msg {
+                SerialMsg::Handshake { mode } => {
+                    self.write_u32(mode);
+                }
+                SerialMsg::HandshakeResponse { selected_mode } => {
+                    self.write_u32(selected_mode);
+                }
+                SerialMsg::StartP1 { p2_time } => {
+                    self.write_u32(p2_time);
+                }
+                SerialMsg::StartP2 { p1_time } => {
+                    self.write_u32(p1_time);
+                }
+                SerialMsg::Sync { p1_time, p2_time } => {
+                    self.write_u32(p1_time);
+                    self.write_u32(p2_time);
+                }
+                SerialMsg::Pause { time } => {
+                    self.write_u32(time);
+                }
+                SerialMsg::P1Finish => {}
+                SerialMsg::P2Finish => {}
             }
-            SerialMsg::HandshakeResponse { selected_mode } => {
-                self.write_u32(selected_mode);
-            }
-            SerialMsg::StartP1 { p2_time } => {
-                self.write_u32(p2_time);
-            }
-            SerialMsg::StartP2 { p1_time } => {
-                self.write_u32(p1_time);
-            }
-            SerialMsg::Sync { p1_time, p2_time } => {
-                self.write_u32(p1_time);
-                self.write_u32(p2_time);
-            }
-            SerialMsg::Pause { time } => {
-                self.write_u32(time);
-            }
-            SerialMsg::P1Finish => {}
-            SerialMsg::P2Finish => {}
         }
     }
 
