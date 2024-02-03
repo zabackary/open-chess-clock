@@ -5,13 +5,13 @@ probably doesn't matter) that, since it uses `embedded-hal`, can easily be
 adapted for other platforms. Basically, it has an up/P1 button, a down/P2
 button, and a start/stop/select button for configuration.
 
-> [!NOTE]
-> On my Arduino Uno r3, there is about a half-second drift per minute of
+> [!NOTE] On my Arduino Uno r3, there is about a half-second drift per minute of
 > runtime compared to my computer clock.
 
 ## Pictures
 
 ![openchessclock-real](https://github.com/zabackary/open-chess-clock/assets/137591653/dd571ff2-32ce-47e8-b64f-7c51153bbb39)
+![openchessclock-web](./www/assets/sync.png)
 
 ## Instructions for use (after set-up)
 
@@ -105,11 +105,11 @@ Time's up!  [P2]
    should be set to an appropriate amount using a pot. Of course, make sure the
    LCD has 5V power (unlike me, who attached it to 2.7V and spent an hour trying
    to fix it).
-3. **Buttons**  
+2. **Buttons**  
    Down button => Arduino d2 & GND (also functions as P1 button)  
    Start button => Arduino d3 & GND  
    Up button => Arduino d4 & GND (also functions as P2 button)
-4. **Buzzer** (optional)  
+3. **Buzzer** (optional)  
    Buzzer anode => Arduino d6
 
 ## Build Instructions
