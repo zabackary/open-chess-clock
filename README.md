@@ -1,14 +1,20 @@
-# Open Chess Clock
+# OpenChessClock
 
 A simple chess clock for the _Arduino Uno_ (specifically the r3, though it
 probably doesn't matter) that, since it uses `embedded-hal`, can easily be
 adapted for other platforms. Basically, it has an up/P1 button, a down/P2
 button, and a start/stop/select button for configuration.
 
-> [!NOTE] On my Arduino Uno r3, there is about a half-second drift per minute of
+> [!NOTE]
+> On my Arduino Uno r3, there is about a half-second drift per minute of
 > runtime compared to my computer clock.
 
-## Pictures
+OpenChessClock even has a web interface for when you want the time to be even
+bigger! Find out more in [`/www`](/www). It connects to the clock over WebSerial
+and shows the time, or can operate independently if needed. Screenshots are
+below.
+
+## Pictures and Screenshots
 
 ![openchessclock-real](https://github.com/zabackary/open-chess-clock/assets/137591653/dd571ff2-32ce-47e8-b64f-7c51153bbb39)
 ![openchessclock-web](./www/assets/sync.png)
