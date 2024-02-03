@@ -9,6 +9,10 @@ button, and a start/stop/select button for configuration.
 > On my Arduino Uno r3, there is about a half-second drift per minute of
 > runtime compared to my computer clock.
 
+## Pictures
+
+![openchessclock-real](https://github.com/zabackary/open-chess-clock/assets/137591653/dd571ff2-32ce-47e8-b64f-7c51153bbb39)
+
 ## Instructions for use (after set-up)
 
 How do I use this chess clock?
