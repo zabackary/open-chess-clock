@@ -367,10 +367,16 @@ button.icon-button {
       border: 0;
       outline: 0 solid transparent;
       outline-offset: 0.05em;
+      text-align: center;
 
       &::-webkit-outer-spin-button,
       &::-webkit-inner-spin-button {
         display: none;
+      }
+
+      &::placeholder {
+        color: var(--foreground);
+        transition: 300ms;
       }
 
       &[type="number"] {
@@ -390,6 +396,10 @@ button.icon-button {
         &:focus {
           outline-width: 0.1em;
           outline-color: var(--system-accent);
+
+          &::placeholder {
+            color: transparent;
+          }
         }
         &:active {
           opacity: 0.9;

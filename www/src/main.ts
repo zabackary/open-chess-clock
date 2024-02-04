@@ -25,10 +25,10 @@ const customStart = expectEl(document.querySelector("#custom-start-button"));
 const presetButtons = [...document.querySelectorAll(".preset")].map(expectEl);
 const p1TimeSetElements = [
   ...document.querySelectorAll(".time-select.p1 input"),
-].map(expectEl);
+].map(expectEl) as HTMLInputElement[];
 const p2TimeSetElements = [
   ...document.querySelectorAll(".time-select.p2 input"),
-].map(expectEl);
+].map(expectEl) as HTMLInputElement[];
 
 async function runSerial() {
   counterContainer.classList.remove("show-picker");
@@ -62,15 +62,18 @@ customButton.addEventListener("click", () => {
 });
 
 customStart.addEventListener("click", () => {
-  customDialog.classList.remove("open");
-  counterContainer.classList.remove("show-picker");
+  const coerceToZero = (x: string) => (x === "" ? "0" : x);
   const p1Ms =
-    parseInt((p1TimeSetElements[0] as HTMLInputElement).value, 10) * 60 * 1000 +
-    parseInt((p1TimeSetElements[1] as HTMLInputElement).value, 10) * 1000;
+    parseInt(coerceToZero(p1TimeSetElements[0].value), 10) * 60 * 1000 +
+    parseInt(coerceToZero(p1TimeSetElements[1].value), 10) * 1000;
   const p2Ms =
-    parseInt((p2TimeSetElements[0] as HTMLInputElement).value, 10) * 60 * 1000 +
-    parseInt((p2TimeSetElements[1] as HTMLInputElement).value, 10) * 1000;
-  runtime(new Clock(p1Ms, p2Ms));
+    parseInt(coerceToZero(p2TimeSetElements[0].value), 10) * 60 * 1000 +
+    parseInt(coerceToZero(p2TimeSetElements[1].value), 10) * 1000;
+  if (p1Ms > 0 && p2Ms > 0) {
+    customDialog.classList.remove("open");
+    counterContainer.classList.remove("show-picker");
+    runtime(new Clock(p1Ms, p2Ms));
+  }
 });
 
 customCancel.addEventListener("click", () => {
@@ -82,3 +85,19 @@ presetButtons.forEach((btn) => {
     run(parseInt(btn.dataset.time ?? "0", 10));
   });
 });
+
+function checkTimeElement(e: Event) {
+  const el = e.currentTarget as HTMLInputElement;
+  const value = parseInt(el.value, 10);
+  if (value > parseInt(el.max, 10)) {
+    e.preventDefault();
+    el.value = el.max;
+  } else if (value < parseInt(el.min, 10)) {
+    e.preventDefault();
+    el.value = el.min;
+  }
+}
+p1TimeSetElements[0].addEventListener("input", checkTimeElement);
+p1TimeSetElements[1].addEventListener("input", checkTimeElement);
+p2TimeSetElements[0].addEventListener("input", checkTimeElement);
+p2TimeSetElements[1].addEventListener("input", checkTimeElement);
